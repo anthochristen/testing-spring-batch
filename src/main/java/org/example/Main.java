@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
+import org.springframework.batch.core.configuration.annotation.JobScope;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
@@ -25,24 +26,21 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 @SpringBootApplication
 @EnableBatchProcessing
+//@ImportResource("classpath:launch-context.xml") -- Use this to fix
 public class Main {
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
+
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication(Main.class);
-        if(args.length == 0) {
-            LOGGER.info("Loading XML Config");
-            app.setSources(Collections.singleton("classpath:launch-context.xml"));
-        }
+        app.setSources(Collections.singleton("classpath:launch-context.xml"));
         System.exit(SpringApplication.exit(app.run(args)));
     }
 
     @Bean
-    @StepScope
+    @JobScope
     public ItemReader<String> reader() {
-
         return new ItemReader<String>() {
             public static final String DEFAULT_LIST = "A,B,C,D,E";
-
             private List<String> inputList = new LinkedList(Arrays.asList(DEFAULT_LIST.split(",")));
 
             @Override
@@ -58,29 +56,12 @@ public class Main {
     }
 
     @Bean
-    protected Job test25(JobRepository jobRepository, ItemReader<String> reader, PlatformTransactionManager txMgr,
-                         ItemProcessor<String , String> processor, ItemWriter<String> writer) {
-        Step step = new StepBuilder("processLines")
-                .repository(jobRepository)
-                .transactionManager(txMgr)
-                .<String, String> chunk(1)
-                .reader(reader)
-                .processor(processor)
-                .writer(writer)
-                .build();
-        Step step2 = new StepBuilder("processLines-2")
-                .repository(jobRepository)
-                .transactionManager(txMgr)
-                .<String, String> chunk(1)
-                .reader(reader)
-                .processor(processor)
-                .writer(writer)
-                .build();
-        return new JobBuilder("test")
-                .repository(jobRepository)
-                .start(step)
-                .next(step2)
-                .build();
+    public ItemProcessor<String, String> processor() {
+        return String::toUpperCase;
     }
 
+    @Bean
+    public ItemWriter<String> writer() {
+        return items -> LOGGER.info("Wrote data: {}", items);
+    }
 }
